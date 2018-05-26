@@ -195,6 +195,7 @@ Sub ATCO(RosterDate As String)
     On Error GoTo 0
     
     Set wb2 = Workbooks.Open(filename:=filename, Password:="aerostar", UpdateLinks:=0)
+    wb2.Windows(1).Visible = False
     
     Set ws1 = wb1.Sheets(RosterDate)
     
@@ -458,6 +459,7 @@ Sub ATFSO(RosterDate As String)
     
     Set wb1 = ThisWorkbook
     Set wb2 = Workbooks.Open(filename:=filename, Password:="aerostar", UpdateLinks:=0)
+    wb2.Windows(1).Visible = False
     
     Set ws1 = wb1.Sheets(RosterDate)
     
@@ -858,6 +860,7 @@ Sub OneClick()
     ScriptEnd = Timer()
     ElapsedTime = ScriptEnd - ScriptStart
     Debug.Print "Elapsed Time: " & Format(ElapsedTime, "#.00") & "s"
+    ThisWorkbook.Sheets("Main").Range("A3") = Format(ElapsedTime, "#.00") & "s"
     Call OptimizeCode_End
 End Sub
 
@@ -868,4 +871,5 @@ Sub PerformanceTest()
         AverageTime = (AverageTime * (I - 1) + ElapsedTime) / I
     Next I
     Debug.Print "Average Time: " & Format(AverageTime, "#.00") & "s"
+    ThisWorkbook.Sheets("Main").Range("A3") = Format(AverageTime, "#.00") & "s"
 End Sub
