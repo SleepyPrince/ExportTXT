@@ -8,6 +8,7 @@ Const noteRow As Integer = 34
 Const streamRow As Integer = 35
 Dim AverageTime As Single
 Dim ElapsedTime As Single
+Dim OpenTime As Single
 
 Function ShiftDeconf(ATCO As String, ATFSO As String, ATFSONewer As Boolean, Optional cs As String = "", Optional day As Integer = 0) As String
   
@@ -23,6 +24,7 @@ Function ShiftDeconf(ATCO As String, ATFSO As String, ATFSONewer As Boolean, Opt
     Dim tmpStr As Variant
     Dim shiftMatch As Boolean: shiftMatch = False
     Dim streamMatch As Boolean: shiftMatch = False
+    Dim sick As Boolean: sick = False
     
     ' Return if ATCO is empty or both are the same
     If ATCO = "" Or ATFSO = ATCO Then
@@ -32,6 +34,9 @@ Function ShiftDeconf(ATCO As String, ATFSO As String, ATFSONewer As Boolean, Opt
     
     ' Split ATCO
     tmpStr = Split(ATCO, ";", 3)
+    If Right(ATCO, 3) = ";S;" Then
+        sick = True
+    End If
     If UBound(tmpStr) = 2 Then
         AStream = tmpStr(0)
         AShift = tmpStr(1)
@@ -69,12 +74,15 @@ Function ShiftDeconf(ATCO As String, ATFSO As String, ATFSONewer As Boolean, Opt
         ' If using ATFSO shift, replace OJT in stream
         If InStr(FShift, "OJT") Then
             FStream = Trim(Replace(FStream, "OJT", ""))
-            If FOJT = "N;" Then
-                FOJT = "Y;;"
+            If FOJT Like "N;*" Then
+                FOJT = "Y;"
             End If
         End If
         
         ShiftDeconf = FStream & ";" & SolvedShift & ";" & FOJT
+        If sick Then
+            ShiftDeconf = ShiftDeconf & ";S;"
+        End If
     End If
     
     #If developMode Then
@@ -179,6 +187,7 @@ Sub ATCO(RosterDate As String)
     Dim cellStr As String
     Dim tmpStr As Variant
     Dim notes As String
+    Dim t As Single
   
     filename = ATCOPath & RosterDate & ".xlsx"
     
@@ -194,12 +203,19 @@ Sub ATCO(RosterDate As String)
     Workbooks(filename).Close SaveChanges:=False
     On Error GoTo 0
     
+    t = Timer()
     Set wb2 = Workbooks.Open(filename:=filename, Password:="aerostar", UpdateLinks:=0)
+    OpenTime = OpenTime + Timer() - t
+    
     wb2.Windows(1).Visible = False
     
     Set ws1 = wb1.Sheets(RosterDate)
     
     Set ws2 = wb2.Sheets("MASTER")
+    ws2.Unprotect ("AABABABABBAN")
+    ws2.Columns.EntireColumn.Hidden = False
+    ws2.Rows.EntireRow.Hidden = False
+    
     Set result = ws2.Range("B:B").Find("app", LookIn:=xlValues)
     Set firstDayCol = ws2.UsedRange.Find(Format("1 " & RosterDate, "d-mmm"))
     
@@ -214,21 +230,21 @@ Sub ATCO(RosterDate As String)
     
     For day = 1 To NumberOfDays
         ' Normal roster
-        I = result.Row
+        i = result.Row
         stream = "APP"
-        Do While ws2.Cells(I, result.Column).Value <> "C/S 1" ' Loop til other mannings
-            cs = UCase(Trim(ws2.Cells(I, firstDayCol.Column + day - 1).Value))
+        Do While ws2.Cells(i, result.Column).Value <> "C/S 1" ' Loop til other mannings
+            cs = UCase(Trim(ws2.Cells(i, firstDayCol.Column + day - 1).Value))
             If cs <> "" Then
-                Shift = ws2.Cells(I, 1).Value
-                If ws2.Cells(I, result.Column).Value = "amn" Then
+                Shift = ws2.Cells(i, 1).Value
+                If ws2.Cells(i, result.Column).Value = "amn" Then
                     stream = "TWR"
-                ElseIf ws2.Cells(I, result.Column).Value = "tre" Then
+                ElseIf ws2.Cells(i, result.Column).Value = "tre" Then
                     stream = "AREA"
-                ElseIf I >= xrmCell.Row Then
-                    stream = UCase(ws2.Cells(I, result.Column).Value)
+                ElseIf i >= xrmCell.Row Then
+                    stream = UCase(ws2.Cells(i, result.Column).Value)
                 End If
                 
-                If cs <> "@" Then
+                If cs <> "@" And cs <> "#" Then
                     ' Only Write to cell if cs <> @
                     cellStr = Left(cs, 2) & day
                     
@@ -249,18 +265,21 @@ Sub ATCO(RosterDate As String)
                         cellStr = cs & day
                         ws1.Range(cellStr).Value = (stream & ";" & Shift & ";Y;" & OJTI & ";")
                         ws1.Range(cellStr).EntireColumn.Hidden = False
+                    Else
+                        ' Append ; if no trainee
+                        ws1.Range(cellStr).Value = ws1.Range(cellStr).Value & ";"
                     End If
                 End If
             End If
-        I = I + 1
+        i = i + 1
         Loop
 
         ' Other manning
-        Do While Len(ws2.Cells(I, result.Column).Value) <> 2 ' Loop til callsign rows
-            cs = UCase(Trim(ws2.Cells(I, firstDayCol.Column + day - 1).Value))
+        Do While Len(ws2.Cells(i, result.Column).Value) <> 2 ' Loop til callsign rows
+            cs = UCase(Trim(ws2.Cells(i, firstDayCol.Column + day - 1).Value))
             If cs <> "" And cs <> "@" Then
-                stream = Trim(ws2.Cells(I + 1, firstDayCol.Column + day - 1).Value)
-                Shift = Trim(ws2.Cells(I + 2, firstDayCol.Column + day - 1).Value)
+                stream = Trim(ws2.Cells(i + 1, firstDayCol.Column + day - 1).Value)
+                Shift = Trim(ws2.Cells(i + 2, firstDayCol.Column + day - 1).Value)
 
                 cellStr = Left(cs, 2) & day
 
@@ -273,7 +292,7 @@ Sub ATCO(RosterDate As String)
                 ' Write to cell
                 If InStr(stream, "OJT") <> 0 Then
                     stream = Trim(Replace(stream, "OJT", ""))
-                    ws1.Range(cellStr).Value = (stream & ";" & Shift & ";Y;;")
+                    ws1.Range(cellStr).Value = (stream & ";" & Shift & ";Y;")
                 Else
                     ws1.Range(cellStr).Value = (stream & ";" & Shift & ";N;")
                 End If
@@ -293,15 +312,18 @@ Sub ATCO(RosterDate As String)
                     cellStr = cs & day
                     ws1.Range(cellStr).Value = (stream & ";" & Shift & ";Y;" & OJTI & ";")
                     ws1.Range(cellStr).EntireColumn.Hidden = False
+                Else
+                    ' Append ; if no trainee
+                    ws1.Range(cellStr).Value = ws1.Range(cellStr).Value & ";"
                 End If
             End If
-            I = I + 4
+            i = i + 4
         Loop
 
         ' Office & Leave
-        Do While ws2.Cells(I, result.Column).Value <> ""
-            cs = ws2.Cells(I, result.Column).Value
-            stream = ws2.Cells(I, firstDayCol.Column + day - 1).Value
+        Do While ws2.Cells(i, result.Column).Value <> ""
+            cs = ws2.Cells(i, result.Column).Value
+            stream = ws2.Cells(i, firstDayCol.Column + day - 1).Value
             If stream <> "" Then
                 cellStr = cs & day
                 Shift = ""
@@ -320,16 +342,19 @@ Sub ATCO(RosterDate As String)
                 End If
 
                 ' Write to cell and show
-                ws1.Range(cellStr).Value = (stream & ";" & Shift & ";N;")
+                ws1.Range(cellStr).Value = (stream & ";" & Shift & ";N;;")
                 ws1.Range(cellStr).EntireColumn.Hidden = False
             End If
-            I = I + 1
+            i = i + 1
         Loop
 
     Next day
     
-    ' Names and Personal Notes
+    ' =============== Names and Personal Notes ===============
     Set ws2 = wb2.Sheets("CALLSIGN")
+    ws2.Unprotect ("AABABABABBAN")
+    ws2.Columns.EntireColumn.Hidden = False
+    ws2.Rows.EntireRow.Hidden = False
     
     ' Find personal notes range
     Set result = ws2.Range("1:1").Find("Personal Notes", LookIn:=xlValues)
@@ -351,21 +376,21 @@ Sub ATCO(RosterDate As String)
     End If
     
     ' Process line by line
-    I = 2
-    Do While Trim(ws2.Cells(I, 2).Value) <> ""
-        cs = Trim(ws2.Cells(I, 1).Value)
-        name = Trim(ws2.Cells(I, 2).Value)
+    i = 2
+    Do While Trim(ws2.Cells(i, 2).Value) <> ""
+        cs = Trim(ws2.Cells(i, 1).Value)
+        name = Trim(ws2.Cells(i, 2).Value)
         
         ' Add notes if found
         notes = ws1.Range(cs & noteRow).Value
         If Not result Is Nothing Then
-            For J = noteStart To noteEnd
+            For j = noteStart To noteEnd
                 ' Validate cell for string comparison
-                If Not Application.WorksheetFunction.IsNA(ws2.Cells(I, J)) Then
+                If Not Application.WorksheetFunction.IsNA(ws2.Cells(i, j)) Then
                     ' Determine stream
                     Set result = ws2.Range("1:1").Find("HKIA")
                     
-                    Set result = ws2.Cells(I, result.Column).Resize(1, 3)
+                    Set result = ws2.Cells(i, result.Column).Resize(1, 3)
                     
                     If WorksheetFunction.CountA(result) <> 0 Then
                         ws1.Range(cs & streamRow).Value = "APPRoster"
@@ -378,7 +403,7 @@ Sub ATCO(RosterDate As String)
                     End If
                     
                     ' notes
-                    tmpStr = ws2.Cells(I, J).Value
+                    tmpStr = ws2.Cells(i, j).Value
                     If InStr(tmpStr, "Individual notes are indicated on") <> 0 Then
                         ' Skip "Individual notes...' note
                     ElseIf tmpStr <> "" And tmpStr <> "0" Then
@@ -392,7 +417,7 @@ Sub ATCO(RosterDate As String)
                         Exit For
                     End If
                 End If
-            Next J
+            Next j
         End If
 
         If notes = "" And WorksheetFunction.CountA(ws1.Range(cs & "1:" & cs & NumberOfDays)) = 0 Then
@@ -406,8 +431,27 @@ Sub ATCO(RosterDate As String)
             ws1.Range(cs & "1").EntireColumn.Hidden = False
         End If
        
-        I = I + 1
+        i = i + 1
     Loop
+    
+    ' =============== Sick Leave ===============
+    Set ws2 = wb2.Sheets("SICK")
+    ws2.Unprotect ("AABABABABBAN")
+    ws2.Columns.EntireColumn.Hidden = False
+    ws2.Rows.EntireRow.Hidden = False
+    sick = 0
+    For day = 1 To NumberOfDays
+        i = 4
+        Do While Trim(ws2.Cells(i, day + 1).Value) <> ""
+            cs = Left(ws2.Cells(i, day + 1).Value, 2)
+            If ws1.Range(cs & day).Value <> "" Then
+                ws1.Range(cs & day).Value = ws1.Range(cs & day).Value & "S;"
+                sick = sick + 1
+            End If
+            i = i + 1
+        Loop
+    Next day
+    Debug.Print RosterDate & " Sick: " & sick
     
     ' Close roster
     wb2.Close False
@@ -433,6 +477,7 @@ Sub ATFSO(RosterDate As String)
     Dim cellStr As String
     Dim tmpStr As Variant
     Dim notes As String
+    Dim t As Single
     
     Dim ATFSONewer As Boolean
     
@@ -458,7 +503,11 @@ Sub ATFSO(RosterDate As String)
     On Error GoTo 0
     
     Set wb1 = ThisWorkbook
+    
+    t = Timer()
     Set wb2 = Workbooks.Open(filename:=filename, Password:="aerostar", UpdateLinks:=0)
+    OpenTime = OpenTime + Timer() - t
+    
     wb2.Windows(1).Visible = False
     
     Set ws1 = wb1.Sheets(RosterDate)
@@ -468,6 +517,7 @@ Sub ATFSO(RosterDate As String)
     Set ws2 = wb2.Sheets("MASTER")
     ws2.Unprotect ("AAABABBABBBo")
     ws2.Rows.EntireRow.Hidden = False
+    ws2.Columns.EntireColumn.Hidden = False
     
     Set result = ws2.Range("B:B").Find("fss", LookIn:=xlValues)
     Set firstDayCol = ws2.UsedRange.Find(Format("1 " & RosterDate, "d-mmm"))
@@ -486,13 +536,13 @@ Sub ATFSO(RosterDate As String)
     
     For day = 1 To NumberOfDays
         ' Normal roster
-        I = result.Row
+        i = result.Row
 
-        Do While ws2.Cells(I, result.Column).Value <> "C/S 1" ' Loop til other mannings
-            cs = UCase(Trim(ws2.Cells(I, firstDayCol.Column + day - 1).Value))
-            If cs <> "" And cs <> "@" Then
-                Shift = ws2.Cells(I, 1).Value
-                stream = UCase(Trim(ws2.Cells(I, result.Column).Value))
+        Do While ws2.Cells(i, result.Column).Value <> "C/S 1" ' Loop til other mannings
+            cs = UCase(Trim(ws2.Cells(i, firstDayCol.Column + day - 1).Value))
+            If cs <> "" And cs <> "@" And cs <> "#" And Len(cs) <> 1 Then
+                Shift = ws2.Cells(i, 1).Value
+                stream = UCase(Trim(ws2.Cells(i, result.Column).Value))
                 
                 entryStr = stream & ";" & Shift & ";N;"
                 
@@ -517,24 +567,29 @@ Sub ATFSO(RosterDate As String)
                     
                     ws1.Range(cellStr).Value = ShiftDeconf(ws1.Range(cellStr).Value, entryStr, ATFSONewer, cs, day)
                     ws1.Range(cellStr).EntireColumn.Hidden = False
+                Else
+                    ' Append ; if no trainee
+                    If Right(ws1.Range(cellStr).Value, 3) <> ";S;" Then
+                        ws1.Range(cellStr).Value = ws1.Range(cellStr).Value & ";"
+                    End If
                 End If
             End If
-        I = I + 1
+        i = i + 1
         Loop
 
         ' Other manning
-        Do While Len(ws2.Cells(I, result.Column).Value) <> 2 ' Loop til callsign rows
-            cs = Trim(ws2.Cells(I, firstDayCol.Column + day - 1).Value)
+        Do While Len(ws2.Cells(i, result.Column).Value) <> 2 ' Loop til callsign rows
+            cs = Trim(ws2.Cells(i, firstDayCol.Column + day - 1).Value)
             If cs <> "" And cs <> "@" Then
-                stream = Trim(ws2.Cells(I + 1, firstDayCol.Column + day - 1).Value)
-                Shift = Trim(ws2.Cells(I + 2, firstDayCol.Column + day - 1).Value)
+                stream = Trim(ws2.Cells(i + 1, firstDayCol.Column + day - 1).Value)
+                Shift = Trim(ws2.Cells(i + 2, firstDayCol.Column + day - 1).Value)
 
                 cellStr = Left(cs, 2) & day
 
                 ' Write to cell
                 
                 If InStr(stream, "OJT") <> 0 Then
-                    entryStr = (Trim(Replace(stream, "OJT", "")) & ";" & Shift & ";Y;;")
+                    entryStr = (Trim(Replace(stream, "OJT", "")) & ";" & Shift & ";Y;")
                 Else
                     entryStr = (stream & ";" & Shift & ";N;")
                 End If
@@ -558,15 +613,20 @@ Sub ATFSO(RosterDate As String)
                     
                     ws1.Range(cellStr).Value = ShiftDeconf(ws1.Range(cellStr).Value, entryStr, ATFSONewer, cs, day)
                     ws1.Range(cellStr).EntireColumn.Hidden = False
+                Else
+                    ' Append ; if no trainee
+                    If Right(ws1.Range(cellStr).Value, 3) <> ";S;" Then
+                        ws1.Range(cellStr).Value = ws1.Range(cellStr).Value & ";"
+                    End If
                 End If
             End If
-            I = I + 4
+            i = i + 4
         Loop
 
         ' Office & Leave
-        Do While ws2.Cells(I, result.Column).Value <> ""
-            cs = ws2.Cells(I, result.Column).Value
-            stream = Trim(ws2.Cells(I, firstDayCol.Column + day - 1).Value)
+        Do While ws2.Cells(i, result.Column).Value <> ""
+            cs = ws2.Cells(i, result.Column).Value
+            stream = Trim(ws2.Cells(i, firstDayCol.Column + day - 1).Value)
             If stream <> "" Then
                 cellStr = cs & day
                 Shift = ""
@@ -584,17 +644,18 @@ Sub ATFSO(RosterDate As String)
                 End If
 
                 ' Write to cell and show
-                ws1.Range(cellStr).Value = (stream & ";" & Shift & ";N;")
+                ws1.Range(cellStr).Value = (stream & ";" & Shift & ";N;;")
                 ws1.Range(cellStr).EntireColumn.Hidden = False
             End If
-            I = I + 1
+            i = i + 1
         Loop
 
     Next day
     
-    ' Names and Personal Notes
+    ' =============== Names and Personal Notes ===============
     Set ws2 = wb2.Sheets("CALLSIGN")
     ws2.Unprotect ("AAABABBABBBo")
+    ws2.Columns.EntireColumn.Hidden = False
     ws2.Rows.EntireRow.Hidden = False
     
     ' Find personal notes range
@@ -617,21 +678,21 @@ Sub ATFSO(RosterDate As String)
     End If
     
     ' Process line by line
-    I = 2
-    Do While Trim(ws2.Cells(I, 2).Value) <> ""
-        cs = Trim(ws2.Cells(I, 1).Value)
-        name = Trim(ws2.Cells(I, 2).Value)
+    i = 2
+    Do While Trim(ws2.Cells(i, 2).Value) <> ""
+        cs = Trim(ws2.Cells(i, 1).Value)
+        name = Trim(ws2.Cells(i, 2).Value)
         
         ' Add notes if found
         notes = ws1.Range(cs & noteRow).Value
         
         If Not result Is Nothing Then
-            For J = noteStart To noteEnd
-                If Not Application.WorksheetFunction.IsNA(ws2.Cells(I, J)) Then
-                    If InStr(ws2.Cells(I, J).Value, "See ATCO Watchlist for other duties") <> 0 Then
+            For j = noteStart To noteEnd
+                If Not Application.WorksheetFunction.IsNA(ws2.Cells(i, j)) Then
+                    If InStr(ws2.Cells(i, j).Value, "See ATCO Watchlist for other duties") <> 0 Then
                         ' Skip
-                    ElseIf ws2.Cells(I, J).Value <> "" And ws2.Cells(I, J).Value <> "0" Then
-                        tmpStr = ws2.Cells(I, J).Value
+                    ElseIf ws2.Cells(i, j).Value <> "" And ws2.Cells(i, j).Value <> "0" Then
+                        tmpStr = ws2.Cells(i, j).Value
                         ' Replace emdash
                         tmpStr = Replace(tmpStr, ChrW(8212), "")
                         notes = notes & "- " & Trim(tmpStr) & ";"
@@ -642,7 +703,7 @@ Sub ATFSO(RosterDate As String)
                 Else
                     Exit For
                 End If
-            Next J
+            Next j
         End If
 
         If notes = "" And WorksheetFunction.CountA(ws1.Range(cs & "1:" & cs & NumberOfDays)) = 0 Then
@@ -658,8 +719,31 @@ Sub ATFSO(RosterDate As String)
             ws1.Range(cs & "1").EntireColumn.Hidden = False
         End If
         
-        I = I + 1
+        i = i + 1
     Loop
+    
+    ' =============== Sick Leave ===============
+    Set ws2 = wb2.Sheets("SICK")
+    ws2.Unprotect ("AAABABBABBBo")
+    ws2.Columns.EntireColumn.Hidden = False
+    ws2.Rows.EntireRow.Hidden = False
+    
+    sick = 0
+    For day = 1 To NumberOfDays
+        i = 4
+        Do While Trim(ws2.Cells(i, day + 1).Value) <> ""
+            cs = Left(ws2.Cells(i, day + 1).Value, 2)
+            If ws1.Range(cs & day).Value <> "" Then
+                If Right(ws1.Range(cs & day).Value, 3) = ";S;" Then
+                    Debug.Print cs & " " & day & " " & RosterDate
+                End If
+                ws1.Range(cs & day).Value = ws1.Range(cs & day).Value & "S;"
+                sick = sick + 1
+            End If
+            i = i + 1
+        Loop
+    Next day
+    Debug.Print RosterDate & " Sick: " & sick
     
     ' Close roster
     wb2.Close False
@@ -736,31 +820,31 @@ Sub OneClick()
     MonthToProcess(0) = Format(Month1, "mmmm yyyy")
     MonthToProcess(1) = Format(Month2, "mmmm yyyy")
     
-    For I = 0 To 1
-        RosterFile(I, 0) = ATFSOPath & MonthToProcess(I) & ".xlsx"
-        RosterFile(I, 1) = ATCOPath & MonthToProcess(I) & ".xlsx"
+    For i = 0 To 1
+        RosterFile(i, 0) = ATFSOPath & MonthToProcess(i) & ".xlsx"
+        RosterFile(i, 1) = ATCOPath & MonthToProcess(i) & ".xlsx"
         
-        If Dir(RosterFile(I, 0)) <> "" Then
-            RosterModTime(I, 0) = Format(FileDateTime(RosterFile(I, 0)), "dd/mm/yyyy HH:nn")
+        If Dir(RosterFile(i, 0)) <> "" Then
+            RosterModTime(i, 0) = Format(FileDateTime(RosterFile(i, 0)), "dd/mm/yyyy HH:nn")
         Else
-            RosterModTime(I, 0) = ""
+            RosterModTime(i, 0) = ""
         End If
         
-        If Dir(RosterFile(I, 1)) <> "" Then
-            RosterModTime(I, 1) = Format(FileDateTime(RosterFile(I, 1)), "dd/mm/yyyy HH:nn")
+        If Dir(RosterFile(i, 1)) <> "" Then
+            RosterModTime(i, 1) = Format(FileDateTime(RosterFile(i, 1)), "dd/mm/yyyy HH:nn")
         Else
-            RosterModTime(I, 1) = ""
+            RosterModTime(i, 1) = ""
         End If
-    Next I
+    Next i
     
     ' Roster Version string
     ClearTxtFile (VersionTxt)
     Open VersionTxt For Output As #2
     
-    For I = 0 To 1
-            RosterVersion(I) = RosterModTime(I, 0) & ";" & RosterModTime(I, 1)
-            Print #2, RosterVersion(I)
-    Next I
+    For i = 0 To 1
+            RosterVersion(i) = RosterModTime(i, 0) & ";" & RosterModTime(i, 1)
+            Print #2, RosterVersion(i)
+    Next i
     
     Close #2
     
@@ -772,23 +856,23 @@ Sub OneClick()
     ClearTxtFile (RosterTxt)
     Open RosterTxt For Output As #1
     
-    For I = 0 To 1
-        Set MonthSheet(I) = ThisWorkbook.Sheets(MonthToProcess(I))
+    For i = 0 To 1
+        Set MonthSheet(i) = ThisWorkbook.Sheets(MonthToProcess(i))
 
-        MonthHeader = "Roster:" & Replace(MonthToProcess(I), " ", ";") & ";" & RosterVersion(I) & ";"
+        MonthHeader = "Roster:" & Replace(MonthToProcess(i), " ", ";") & ";" & RosterVersion(i) & ";"
         Print #1, MonthHeader & vbNewLine & vbNewLine
         
-        NumberOfDays = NB_DAYS(DateValue("1 " & MonthToProcess(I)))
+        NumberOfDays = NB_DAYS(DateValue("1 " & MonthToProcess(i)))
         
-        Set RosterRange = MonthSheet(I).Range("AA1:ZZ" & streamRow)
+        Set RosterRange = MonthSheet(i).Range("AA1:ZZ" & streamRow)
         
         With RosterRange
-            For K = 1 To .Columns.Count
+            For k = 1 To .Columns.Count
                 ' If CS exists
-                If .Cells(csRow, K).Value <> "" Then
-                    cs = .Cells(csRow, K).Value
+                If .Cells(csRow, k).Value <> "" Then
+                    cs = .Cells(csRow, k).Value
                     ' Determine stream
-                    Set searchRng = MonthSheet(I).Range(.Cells(1, K), .Cells(NumberOfDays, K))
+                    Set searchRng = MonthSheet(i).Range(.Cells(1, k), .Cells(NumberOfDays, k))
                     
                     'If Application.CountIf(searchRng, "SOHD;;N;") = NumberOfDays And .Cells(noteRow, K) = "" Then
                         'Debug.Print cs & " all SOHD & no notes"
@@ -798,63 +882,63 @@ Sub OneClick()
                         ' Set "Roster"
                         If Application.CountIf(searchRng, "*;Y;*") > 0 Then
                             If Application.CountIf(searchRng, "APP*") > 0 Or Application.CountIf(searchRng, "APS*") > 0 Or Application.CountIf(searchRng, "TSU*") > 0 Then
-                                .Cells(streamRow, K).Value = "APPRoster"
+                                .Cells(streamRow, k).Value = "APPRoster"
                             ElseIf Application.CountIf(searchRng, "AREA*") > 0 Or Application.CountIf(searchRng, "ESU*") > 0 Then
-                                .Cells(streamRow, K).Value = "AREARoster"
+                                .Cells(streamRow, k).Value = "AREARoster"
                             ElseIf Application.CountIf(searchRng, "WMR*") > 0 Or Application.CountIf(searchRng, "FLM*") > 0 Then
-                                .Cells(streamRow, K).Value = "AREARoster"
+                                .Cells(streamRow, k).Value = "AREARoster"
                             ElseIf Application.CountIf(searchRng, "TWR*") > 0 Or Application.CountIf(searchRng, "ASU*") > 0 Then
-                                .Cells(streamRow, K).Value = "TWRRoster"
-                            ElseIf .Cells(streamRow, K).Value = "" Then
-                                .Cells(streamRow, K).Value = "ATFSO"
+                                .Cells(streamRow, k).Value = "TWRRoster"
+                            ElseIf .Cells(streamRow, k).Value = "" Then
+                                .Cells(streamRow, k).Value = "ATFSO"
                             End If
                         End If
                         
                         ' Manual entries
-                        MonthSheet(I).Range("SL" & streamRow).Value = "AREARoster"
-                        MonthSheet(I).Range("SM" & streamRow).Value = "APPRoster"
-                        MonthSheet(I).Range("XR" & streamRow).Value = "TWRRoster"
-                        MonthSheet(I).Range("LW" & streamRow).Value = "AREARoster"
+                        MonthSheet(i).Range("SL" & streamRow).Value = "AREARoster"
+                        MonthSheet(i).Range("SM" & streamRow).Value = "APPRoster"
+                        MonthSheet(i).Range("XR" & streamRow).Value = "TWRRoster"
+                        MonthSheet(i).Range("LW" & streamRow).Value = "AREARoster"
                         
                         ' Replace Night CDC with Night TWR for Rated controllers
-                        If .Cells(streamRow, K).Value Like "*Roster" Then
+                        If .Cells(streamRow, k).Value Like "*Roster" Then
                             If Application.CountIf(searchRng, "TWR;*;Y;*") = 0 Then
                                 searchRng.Replace What:="CDC;N", Replacement:="TWR;N"
                             End If
                         End If
                         
                         ' Set empty streams with ATFSO and replace their TWR with CDC
-                        If .Cells(streamRow, K) = "" Then
-                            .Cells(streamRow, K).Value = "ATFSO"
+                        If .Cells(streamRow, k) = "" Then
+                            .Cells(streamRow, k).Value = "ATFSO"
                             searchRng.Replace What:="TWR;", Replacement:="CDC;"
                         End If
                        
-                        PersonalRoster = "Name:" & .Cells(nameRow, K) & ";" & .Cells(csRow, K) & ";" & .Cells(streamRow, K) & ";" & .Cells(noteRow, K)
+                        PersonalRoster = "Name:" & .Cells(nameRow, k) & ";" & .Cells(csRow, k) & ";" & .Cells(streamRow, k) & ";" & .Cells(noteRow, k)
                         Print #1, PersonalRoster
                         
-                        For J = 1 To NumberOfDays
-                            If .Cells(J, K).Value = "" Then
-                               ' Fill Empty days - For Test
-                               .Cells(J, K).Value = ";;N;"
-                               Print #1, ";;N;"
+                        For j = 1 To NumberOfDays
+                            If .Cells(j, k).Value = "" Then
+                               ' Fill Empty days
+                               .Cells(j, k).Value = ";;N;;"
+                               Print #1, ";;N;;"
                             Else
-                               Print #1, .Cells(J, K).Value
+                               Print #1, .Cells(j, k).Value
                             End If
-                        Next J
+                        Next j
                         Print #1, ""
                     End If
                 End If
-            Next K
+            Next k
         End With
         
         ' Remove completed roster
         #If Not developMode Then
             On Error Resume Next
-            MonthSheet(I).Delete
+            MonthSheet(i).Delete
             On Error GoTo 0
         #End If
         
-    Next I
+    Next i
     
     Close #1
     ScriptEnd = Timer()
@@ -866,10 +950,16 @@ End Sub
 
 Sub PerformanceTest()
     AverageTime = 0
-    For I = 1 To 5
+    For i = 1 To 5
         Call OneClick
-        AverageTime = (AverageTime * (I - 1) + ElapsedTime) / I
-    Next I
+        AverageTime = (AverageTime * (i - 1) + ElapsedTime) / i
+    Next i
     Debug.Print "Average Time: " & Format(AverageTime, "#.00") & "s"
     ThisWorkbook.Sheets("Main").Range("A3") = Format(AverageTime, "#.00") & "s"
+End Sub
+
+Sub ProcessTime()
+    OpenTime = 0
+    Call OneClick
+    Debug.Print "Process time: " & Format(ElapsedTime - OpenTime, "#.00")
 End Sub

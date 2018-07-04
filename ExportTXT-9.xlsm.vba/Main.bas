@@ -1,3 +1,3 @@
 Private Sub CommandButton1_Click()
-    Call OneClick
+    OneClick
 End Sub
