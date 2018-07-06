@@ -130,20 +130,6 @@ Function Shift2Time(s As String) As String
     End If
 End Function
 
-Private Sub ClearTxtFile(filename As String)
-' Delete the txt file
-
-'Check that file exists
-If Dir(filename) <> "" Then
-    'First remove readonly attribute, if set
-    SetAttr filename, vbNormal
-    'Then clear the file
-    Open filename For Output As #1
-    Close #1
-End If
-
-End Sub
-
 Function NB_DAYS(date_test As Date)
     NB_DAYS = day(DateSerial(Year(date_test), Month(date_test) + 1, 1) - 1)
 End Function
@@ -451,7 +437,9 @@ Sub ATCO(RosterDate As String)
             i = i + 1
         Loop
     Next day
-    Debug.Print RosterDate & " Sick: " & sick
+    #If developMode Then
+        Debug.Print RosterDate & " Sick: " & sick
+    #End If
     
     ' Close roster
     wb2.Close False
@@ -505,7 +493,9 @@ Sub ATFSO(RosterDate As String)
     Set wb1 = ThisWorkbook
     
     t = Timer()
+
     Set wb2 = Workbooks.Open(filename:=filename, Password:="aerostar", UpdateLinks:=0)
+    
     OpenTime = OpenTime + Timer() - t
     
     wb2.Windows(1).Visible = False
@@ -743,7 +733,10 @@ Sub ATFSO(RosterDate As String)
             i = i + 1
         Loop
     Next day
-    Debug.Print RosterDate & " Sick: " & sick
+    
+    #If developMode Then
+        Debug.Print RosterDate & " Sick: " & sick
+    #End If
     
     ' Close roster
     wb2.Close False
@@ -792,12 +785,16 @@ Sub OneClick()
     Dim PersonalRoster As String
     Dim VersionTxt As String
     Dim RosterTxt As String
+    Dim VersionTmp As String
+    Dim RosterTmp As String
     Dim NumberOfDays As Integer
     
     ScriptStart = Timer()
     
     VersionTxt = ThisWorkbook.Path & "\ATCapp_Roster_Version.txt"
     RosterTxt = ThisWorkbook.Path & "\ATCapp_Rosters_new.txt"
+    VersionTmp = ThisWorkbook.Path & "\ATCapp_Roster_Version.tmp"
+    RosterTmp = ThisWorkbook.Path & "\ATCapp_Rosters_new.tmp"
     
     ' Determine Files to process
     ' Default to process current and next month
@@ -837,26 +834,21 @@ Sub OneClick()
         End If
     Next i
     
-    ' Roster Version string
-    ClearTxtFile (VersionTxt)
-    Open VersionTxt For Output As #2
+    ' Clear and open temp files
+    KillProperly (RosterTmp)
+    Open RosterTmp For Output As #1
+    
+    KillProperly (VersionTmp)
+    Open VersionTmp For Output As #2
     
     For i = 0 To 1
-            RosterVersion(i) = RosterModTime(i, 0) & ";" & RosterModTime(i, 1)
-            Print #2, RosterVersion(i)
-    Next i
-    
-    Close #2
-    
-    ' Process Rosters
-    ProcessRoster (MonthToProcess(0))
-    ProcessRoster (MonthToProcess(1))
-    
-    ' Write roster to file
-    ClearTxtFile (RosterTxt)
-    Open RosterTxt For Output As #1
-    
-    For i = 0 To 1
+        ' Process Rosters
+        ProcessRoster (MonthToProcess(i))
+        
+        ' Roster version & time
+        RosterVersion(i) = RosterModTime(i, 0) & ";" & RosterModTime(i, 1)
+        Print #2, RosterVersion(i)
+        
         Set MonthSheet(i) = ThisWorkbook.Sheets(MonthToProcess(i))
 
         MonthHeader = "Roster:" & Replace(MonthToProcess(i), " ", ";") & ";" & RosterVersion(i) & ";"
@@ -931,7 +923,7 @@ Sub OneClick()
             Next k
         End With
         
-        ' Remove completed roster
+        ' Remove completed roster worksheets
         #If Not developMode Then
             On Error Resume Next
             MonthSheet(i).Delete
@@ -940,7 +932,16 @@ Sub OneClick()
         
     Next i
     
+    ' Close temp files
     Close #1
+    Close #2
+    
+    ' Delete and rename files after conversion completed successfully
+    KillProperly (RosterTxt)
+    KillProperly (VersionTxt)
+    Name RosterTmp As RosterTxt
+    Name VersionTmp As VersionTxt
+    
     ScriptEnd = Timer()
     ElapsedTime = ScriptEnd - ScriptStart
     Debug.Print "Elapsed Time: " & Format(ElapsedTime, "#.00") & "s"
@@ -962,4 +963,11 @@ Sub ProcessTime()
     OpenTime = 0
     Call OneClick
     Debug.Print "Process time: " & Format(ElapsedTime - OpenTime, "#.00")
+End Sub
+
+Public Sub KillProperly(Killfile As String)
+    If Len(Dir$(Killfile)) > 0 Then
+        SetAttr Killfile, vbNormal
+        Kill Killfile
+    End If
 End Sub
