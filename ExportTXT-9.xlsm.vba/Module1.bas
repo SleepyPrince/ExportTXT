@@ -357,68 +357,67 @@ Sub ATCO(RosterDate As String)
         
         ' Debug.Print noteStart & " " & noteEnd
         
-    Else
-        Debug.Print "Personal Notes Cells not found"
-    End If
-    
-    ' Process line by line
-    i = 2
-    Do While Trim(ws2.Cells(i, 2).Value) <> ""
-        cs = Trim(ws2.Cells(i, 1).Value)
-        name = Trim(ws2.Cells(i, 2).Value)
-        
-        ' Add notes if found
-        notes = ws1.Range(cs & noteRow).Value
-        If Not result Is Nothing Then
-            For j = noteStart To noteEnd
-                ' Validate cell for string comparison
-                If Not Application.WorksheetFunction.IsNA(ws2.Cells(i, j)) Then
-                    ' Determine stream
-                    Set result = ws2.Range("1:1").Find("HKIA")
-                    
-                    Set result = ws2.Cells(i, result.Column).Resize(1, 3)
-                    
-                    If WorksheetFunction.CountA(result) <> 0 Then
-                        ws1.Range(cs & streamRow).Value = "APPRoster"
-                    ElseIf WorksheetFunction.CountA(result.Offset(0, 3).Resize(1, 7)) <> 0 Then
-                        ws1.Range(cs & streamRow).Value = "AREARoster"
-                    ElseIf WorksheetFunction.CountA(result.Offset(0, 12).Resize(1, 1)) <> 0 Then
-                        ws1.Range(cs & streamRow).Value = "TWRRoster"
-                    ElseIf WorksheetFunction.CountA(result.Offset(0, -1).Resize(1, 1)) <> 0 Then
-                        ws1.Range(cs & streamRow).Value = "APPRoster"
-                    End If
-                    
-                    ' notes
-                    tmpStr = ws2.Cells(i, j).Value
-                    If InStr(tmpStr, "Individual notes are indicated on") <> 0 Then
-                        ' Skip "Individual notes...' note
-                    ElseIf tmpStr <> "" And tmpStr <> "0" Then
-                        ' Trim numbering
-                        If Mid(tmpStr, 2, 2) = ". " Then
-                            tmpStr = Right(tmpStr, Len(tmpStr) - 3)
+        ' Process line by line
+        i = 2
+        Do While Trim(ws2.Cells(i, 2).Value) <> ""
+            cs = Trim(ws2.Cells(i, 1).Value)
+            name = Trim(ws2.Cells(i, 2).Value)
+            ' Add notes if found
+            If cs <> "" Then
+                notes = ws1.Range(cs & noteRow).Value
+                For j = noteStart To noteEnd
+                    ' Validate cell for string comparison
+                    If Not Application.WorksheetFunction.IsNA(ws2.Cells(i, j)) Then
+                        ' Determine stream
+                        Set result = ws2.Range("1:1").Find("HKIA")
+                        
+                        Set result = ws2.Cells(i, result.Column).Resize(1, 3)
+                        
+                        If WorksheetFunction.CountA(result) <> 0 Then
+                            ws1.Range(cs & streamRow).Value = "APPRoster"
+                        ElseIf WorksheetFunction.CountA(result.Offset(0, 3).Resize(1, 7)) <> 0 Then
+                            ws1.Range(cs & streamRow).Value = "AREARoster"
+                        ElseIf WorksheetFunction.CountA(result.Offset(0, 12).Resize(1, 1)) <> 0 Then
+                            ws1.Range(cs & streamRow).Value = "TWRRoster"
+                        ElseIf WorksheetFunction.CountA(result.Offset(0, -1).Resize(1, 1)) <> 0 Then
+                            ws1.Range(cs & streamRow).Value = "APPRoster"
                         End If
-                        notes = notes & "- " & Trim(tmpStr) & ";"
-                    Else
-                        ' Skip if note cell is empty
-                        Exit For
+                        
+                        ' notes
+                        tmpStr = ws2.Cells(i, j).Value
+                        If InStr(tmpStr, "Individual notes are indicated on") <> 0 Then
+                            ' Skip "Individual notes...' note
+                        ElseIf tmpStr <> "" And tmpStr <> "0" Then
+                            ' Trim numbering
+                            If Mid(tmpStr, 2, 2) = ". " Then
+                                tmpStr = Right(tmpStr, Len(tmpStr) - 3)
+                            End If
+                            notes = notes & "- " & Trim(tmpStr) & ";"
+                        Else
+                            ' Skip if note cell is empty
+                            Exit For
+                        End If
                     End If
+                Next j
+            
+                If notes = "" And WorksheetFunction.CountA(ws1.Range(cs & "1:" & cs & NumberOfDays)) = 0 Then
+                    'Debug.Print RosterDate & " ATCO " & cs & " is empty"
+                    ws1.Range(cs & "1").EntireColumn.Hidden = True
+                Else
+                    ' Write info to cells
+                    ws1.Range(cs & nameRow).Value = name
+                    ws1.Range(cs & noteRow).Value = notes
+                    ws1.Range(cs & csRow).Value = cs
+                    ws1.Range(cs & "1").EntireColumn.Hidden = False
                 End If
-            Next j
-        End If
-
-        If notes = "" And WorksheetFunction.CountA(ws1.Range(cs & "1:" & cs & NumberOfDays)) = 0 Then
-            'Debug.Print RosterDate & " ATCO " & cs & " is empty"
-            ws1.Range(cs & "1").EntireColumn.Hidden = True
-        Else
-            ' Write info to cells
-            ws1.Range(cs & nameRow).Value = name
-            ws1.Range(cs & noteRow).Value = notes
-            ws1.Range(cs & csRow).Value = cs
-            ws1.Range(cs & "1").EntireColumn.Hidden = False
-        End If
-       
-        i = i + 1
-    Loop
+            
+            End If
+           
+            i = i + 1
+        Loop
+    Else
+        Debug.Print "Personal Notes Cell not found"
+    End If
     
     ' =============== Sick Leave ===============
     Set ws2 = wb2.Sheets("SICK")
@@ -662,62 +661,61 @@ Sub ATFSO(RosterDate As String)
         End If
         
         ' Debug.Print noteStart & " " & noteEnd
-        
-    Else
-        Debug.Print "Personal Notes Cells not found"
-    End If
-    
-    ' Process line by line
-    i = 2
-    Do While Trim(ws2.Cells(i, 2).Value) <> ""
-        cs = Trim(ws2.Cells(i, 1).Value)
-        name = Trim(ws2.Cells(i, 2).Value)
-        
-        ' Add notes if found
-        notes = ws1.Range(cs & noteRow).Value
-        
-        If Not result Is Nothing Then
-            For j = noteStart To noteEnd
-                If Not Application.WorksheetFunction.IsNA(ws2.Cells(i, j)) Then
-                    If InStr(ws2.Cells(i, j).Value, "See ATCO Watchlist for other duties") <> 0 Then
-                        ' Skip
-                    ElseIf ws2.Cells(i, j).Value <> "" And ws2.Cells(i, j).Value <> "0" Then
-                        tmpStr = ws2.Cells(i, j).Value
-                        ' Replace emdash
-                        tmpStr = Replace(tmpStr, ChrW(8212), "")
-                        notes = notes & "- " & Trim(tmpStr) & ";"
+  
+        ' Process line by line
+        i = 2
+        Do While Trim(ws2.Cells(i, 2).Value) <> ""
+            cs = Trim(ws2.Cells(i, 1).Value)
+            name = Trim(ws2.Cells(i, 2).Value)
+            
+            ' Add notes if found
+            If cs <> "" Then
+                notes = ws1.Range(cs & noteRow).Value
+                For j = noteStart To noteEnd
+                    If Not Application.WorksheetFunction.IsNA(ws2.Cells(i, j)) Then
+                        If InStr(ws2.Cells(i, j).Value, "See ATCO Watchlist for other duties") <> 0 Then
+                            ' Skip
+                        ElseIf ws2.Cells(i, j).Value <> "" And ws2.Cells(i, j).Value <> "0" Then
+                            tmpStr = ws2.Cells(i, j).Value
+                            ' Replace emdash
+                            tmpStr = Replace(tmpStr, ChrW(8212), "")
+                            notes = notes & "- " & Trim(tmpStr) & ";"
+                        Else
+                            ' Skip if note cell is empty
+                            Exit For
+                        End If
                     Else
-                        ' Skip if note cell is empty
                         Exit For
                     End If
+                Next j
+                
+                If notes = "" And WorksheetFunction.CountA(ws1.Range(cs & "1:" & cs & NumberOfDays)) = 0 Then
+                    ' Debug.Print RosterDate & " ATFSO " & cs & " is empty"
+                    ws1.Range(cs & "1").EntireColumn.Hidden = True
                 Else
-                    Exit For
+                    If Len(ws1.Range(cs & nameRow).Value) < Len(name) Then
+                        ' Use longer name
+                        ws1.Range(cs & nameRow).Value = name
+                    End If
+                    ws1.Range(cs & noteRow).Value = notes
+                    ws1.Range(cs & csRow).Value = cs
+                    ws1.Range(cs & "1").EntireColumn.Hidden = False
                 End If
-            Next j
-        End If
-
-        If notes = "" And WorksheetFunction.CountA(ws1.Range(cs & "1:" & cs & NumberOfDays)) = 0 Then
-            ' Debug.Print RosterDate & " ATFSO " & cs & " is empty"
-            ws1.Range(cs & "1").EntireColumn.Hidden = True
-        Else
-            If Len(ws1.Range(cs & nameRow).Value) < Len(name) Then
-                ' Use longer name
-                ws1.Range(cs & nameRow).Value = name
+                
             End If
-            ws1.Range(cs & noteRow).Value = notes
-            ws1.Range(cs & csRow).Value = cs
-            ws1.Range(cs & "1").EntireColumn.Hidden = False
-        End If
-        
-        i = i + 1
-    Loop
+            
+            i = i + 1
+        Loop
+    Else
+        Debug.Print "Personal Notes Cell not found"
+    End If
     
     ' =============== Sick Leave ===============
     Set ws2 = wb2.Sheets("SICK")
     ws2.Unprotect ("AAABABBABBBo")
     ws2.Columns.EntireColumn.Hidden = False
     ws2.Rows.EntireRow.Hidden = False
-    
+
     sick = 0
     For day = 1 To NumberOfDays
         i = 4
@@ -733,7 +731,7 @@ Sub ATFSO(RosterDate As String)
             i = i + 1
         Loop
     Next day
-    
+
     #If developMode Then
         Debug.Print RosterDate & " Sick: " & sick
     #End If
