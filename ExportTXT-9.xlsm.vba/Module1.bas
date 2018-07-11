@@ -9,6 +9,7 @@ Const streamRow As Integer = 35
 Dim AverageTime As Single
 Dim ElapsedTime As Single
 Dim OpenTime As Single
+Dim logFile As Object
 
 Function ShiftDeconf(ATCO As String, ATFSO As String, ATFSONewer As Boolean, Optional cs As String = "", Optional day As Integer = 0) As String
   
@@ -96,7 +97,7 @@ Function Shift2Time(s As String) As String
     ' Init shifts
     If SHIFTS.Count <> 21 Then
         With SHIFTS
-            On Error Resume Next
+            'On Error Resume Next
             .CompareMode = vbTextCompare
             .Add "E*", "0730-1500"
             .Add "E1", "0745-1500"
@@ -119,7 +120,7 @@ Function Shift2Time(s As String) As String
             .Add "N*", "2130-0800"
             .Add "N1", "2145-0800"
             .Add "N2", "2100-0715"
-            On Error GoTo 0
+            'On Error GoTo 0
         End With
     End If
     
@@ -190,6 +191,8 @@ Sub ATCO(RosterDate As String)
     On Error GoTo 0
     
     t = Timer()
+    
+    logFile.Write vbTab & "Open"
     Set wb2 = Workbooks.Open(filename:=filename, Password:="aerostar", UpdateLinks:=0)
     OpenTime = OpenTime + Timer() - t
     
@@ -213,6 +216,8 @@ Sub ATCO(RosterDate As String)
     Set xrmCell = ws2.Range("B:B").Find("xrm", LookIn:=xlValues)
     
     NumberOfDays = NB_DAYS(DateValue("1 " & RosterDate))
+    
+    logFile.Write vbTab & "Shifts"
     
     For day = 1 To NumberOfDays
         ' Normal roster
@@ -337,6 +342,7 @@ Sub ATCO(RosterDate As String)
     Next day
     
     ' =============== Names and Personal Notes ===============
+    logFile.Write vbTab & "Notes"
     Set ws2 = wb2.Sheets("CALLSIGN")
     ws2.Unprotect ("AABABABABBAN")
     ws2.Columns.EntireColumn.Hidden = False
@@ -420,6 +426,7 @@ Sub ATCO(RosterDate As String)
     End If
     
     ' =============== Sick Leave ===============
+    logFile.Write vbTab & "Sick"
     Set ws2 = wb2.Sheets("SICK")
     ws2.Unprotect ("AABABABABBAN")
     ws2.Columns.EntireColumn.Hidden = False
@@ -442,7 +449,7 @@ Sub ATCO(RosterDate As String)
     
     ' Close roster
     wb2.Close False
-    
+    logFile.WriteLine vbTab & "Done"
 End Sub
 Sub ATFSO(RosterDate As String)
     Dim filename As String
@@ -492,7 +499,8 @@ Sub ATFSO(RosterDate As String)
     Set wb1 = ThisWorkbook
     
     t = Timer()
-
+    
+    logFile.Write vbTab & "Open"
     Set wb2 = Workbooks.Open(filename:=filename, Password:="aerostar", UpdateLinks:=0)
     
     OpenTime = OpenTime + Timer() - t
@@ -523,6 +531,7 @@ Sub ATFSO(RosterDate As String)
     
     NumberOfDays = NB_DAYS(DateValue("1 " & RosterDate))
     
+    logFile.Write vbTab & "Shifts"
     For day = 1 To NumberOfDays
         ' Normal roster
         i = result.Row
@@ -642,6 +651,7 @@ Sub ATFSO(RosterDate As String)
     Next day
     
     ' =============== Names and Personal Notes ===============
+    logFile.Write vbTab & "Notes"
     Set ws2 = wb2.Sheets("CALLSIGN")
     ws2.Unprotect ("AAABABBABBBo")
     ws2.Columns.EntireColumn.Hidden = False
@@ -711,6 +721,7 @@ Sub ATFSO(RosterDate As String)
     End If
     
     ' =============== Sick Leave ===============
+    logFile.Write vbTab & "Sick"
     Set ws2 = wb2.Sheets("SICK")
     ws2.Unprotect ("AAABABBABBBo")
     ws2.Columns.EntireColumn.Hidden = False
@@ -738,7 +749,7 @@ Sub ATFSO(RosterDate As String)
     
     ' Close roster
     wb2.Close False
-    
+    logFile.WriteLine vbTab & "Done"
 End Sub
 
 Sub ProcessRoster(RosterDate As String)
@@ -755,7 +766,10 @@ Sub ProcessRoster(RosterDate As String)
         ws1.Columns("A:ZZ").EntireColumn.Hidden = True
     End With
     
+    logFile.Write Now & vbTab & "ATCO"
     ATCO (RosterDate)
+    
+    logFile.Write Now & vbTab & "ATFSO"
     ATFSO (RosterDate)
 
 End Sub
@@ -787,6 +801,24 @@ Sub OneClick()
     Dim RosterTmp As String
     Dim NumberOfDays As Integer
     
+    Dim objFSO As Object
+    Dim logFileName As String
+    
+    ' Init log file
+    Set objFSO = CreateObject("Scripting.FileSystemObject")
+    logFileName = ThisWorkbook.Path & "\log.txt"
+    
+    If Dir(logFileName) = "" Then
+        Set logFile = objFSO.CreateTextFile(logFileName)
+    Else
+        Set logFile = objFSO.OpenTextFile(logFileName, ForAppending)
+    End If
+    
+    On Error GoTo closeLog
+    logFile.WriteLine
+    logFile.WriteLine "=========================================================================="
+    logFile.WriteLine Now & vbTab & "Roster conversion started"
+    
     ScriptStart = Timer()
     
     VersionTxt = ThisWorkbook.Path & "\ATCapp_Roster_Version.txt"
@@ -814,7 +846,7 @@ Sub OneClick()
     
     MonthToProcess(0) = Format(Month1, "mmmm yyyy")
     MonthToProcess(1) = Format(Month2, "mmmm yyyy")
-    
+   
     For i = 0 To 1
         RosterFile(i, 0) = ATFSOPath & MonthToProcess(i) & ".xlsx"
         RosterFile(i, 1) = ATCOPath & MonthToProcess(i) & ".xlsx"
@@ -840,6 +872,8 @@ Sub OneClick()
     Open VersionTmp For Output As #2
     
     For i = 0 To 1
+        
+        logFile.WriteLine Now & vbTab & "Processing " & MonthToProcess(i)
         ' Process Rosters
         ProcessRoster (MonthToProcess(i))
         
@@ -855,7 +889,7 @@ Sub OneClick()
         NumberOfDays = NB_DAYS(DateValue("1 " & MonthToProcess(i)))
         
         Set RosterRange = MonthSheet(i).Range("AA1:ZZ" & streamRow)
-        
+        logFile.WriteLine Now & vbTab & "Writing to file"
         With RosterRange
             For k = 1 To .Columns.Count
                 ' If CS exists
@@ -944,6 +978,14 @@ Sub OneClick()
     ElapsedTime = ScriptEnd - ScriptStart
     Debug.Print "Elapsed Time: " & Format(ElapsedTime, "#.00") & "s"
     ThisWorkbook.Sheets("Main").Range("A3") = Format(ElapsedTime, "#.00") & "s"
+    
+    logFile.WriteLine Now & vbTab & "Elapsed time: " & ElapsedTime & "s"
+    logFile.WriteLine Now & vbTab & "Roster conversion completed"
+
+closeLog:
+    ' Close log file
+    logFile.Close
+    
     Call OptimizeCode_End
 End Sub
 
