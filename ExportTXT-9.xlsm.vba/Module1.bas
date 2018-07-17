@@ -153,6 +153,10 @@ Private Sub OptimizeCode_End()
     ActiveSheet.DisplayPageBreaks = True
 End Sub
 
+Public Function IsAlpha(strValue As String) As Boolean
+    IsAlpha = strValue Like WorksheetFunction.Rept("[a-zA-Z]", Len(strValue))
+End Function
+
 Sub ATCO(RosterDate As String)
     Dim filename As String
     Dim NumberOfDays As Integer
@@ -235,7 +239,7 @@ Sub ATCO(RosterDate As String)
                     stream = UCase(ws2.Cells(i, result.Column).Value)
                 End If
                 
-                If cs <> "@" And cs <> "#" And cs <> "n/a" And cs <> "N/A" Then
+                If IsAlpha(cs) And (Len(cs) = 4 Or Len(cs) = 2) Then
                     ' Only Write to cell if cs is valid
                     cellStr = Left(cs, 2) & day
                     
@@ -268,7 +272,7 @@ Sub ATCO(RosterDate As String)
         ' Other manning
         Do While Len(ws2.Cells(i, result.Column).Value) <> 2 ' Loop til callsign rows
             cs = UCase(Trim(ws2.Cells(i, firstDayCol.Column + day - 1).Value))
-            If cs <> "" And cs <> "@" Then
+            If IsAlpha(cs) And (Len(cs) = 4 Or Len(cs) = 2) Then
                 stream = Trim(ws2.Cells(i + 1, firstDayCol.Column + day - 1).Value)
                 Shift = Trim(ws2.Cells(i + 2, firstDayCol.Column + day - 1).Value)
 
@@ -538,7 +542,7 @@ Sub ATFSO(RosterDate As String)
 
         Do While ws2.Cells(i, result.Column).Value <> "C/S 1" ' Loop til other mannings
             cs = UCase(Trim(ws2.Cells(i, firstDayCol.Column + day - 1).Value))
-            If cs <> "" And cs <> "@" And cs <> "#" And cs <> "n/a" And cs <> "N/A" And Len(cs) <> 1 Then
+            If IsAlpha(cs) And (Len(cs) = 4 Or Len(cs) = 2) Then
                 Shift = ws2.Cells(i, 1).Value
                 stream = UCase(Trim(ws2.Cells(i, result.Column).Value))
                 
@@ -578,7 +582,7 @@ Sub ATFSO(RosterDate As String)
         ' Other manning
         Do While Len(ws2.Cells(i, result.Column).Value) <> 2 ' Loop til callsign rows
             cs = Trim(ws2.Cells(i, firstDayCol.Column + day - 1).Value)
-            If cs <> "" And cs <> "@" Then
+            If IsAlpha(cs) And (Len(cs) = 4 Or Len(cs) = 2) Then
                 stream = Trim(ws2.Cells(i + 1, firstDayCol.Column + day - 1).Value)
                 Shift = Trim(ws2.Cells(i + 2, firstDayCol.Column + day - 1).Value)
 
