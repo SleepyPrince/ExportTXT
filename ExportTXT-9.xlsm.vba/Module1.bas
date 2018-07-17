@@ -235,8 +235,8 @@ Sub ATCO(RosterDate As String)
                     stream = UCase(ws2.Cells(i, result.Column).Value)
                 End If
                 
-                If cs <> "@" And cs <> "#" Then
-                    ' Only Write to cell if cs <> @
+                If cs <> "@" And cs <> "#" And cs <> "n/a" And cs <> "N/A" Then
+                    ' Only Write to cell if cs is valid
                     cellStr = Left(cs, 2) & day
                     
                     ws1.Range(cellStr).Value = (stream & ";" & Shift & ";N;")
@@ -538,7 +538,7 @@ Sub ATFSO(RosterDate As String)
 
         Do While ws2.Cells(i, result.Column).Value <> "C/S 1" ' Loop til other mannings
             cs = UCase(Trim(ws2.Cells(i, firstDayCol.Column + day - 1).Value))
-            If cs <> "" And cs <> "@" And cs <> "#" And Len(cs) <> 1 Then
+            If cs <> "" And cs <> "@" And cs <> "#" And cs <> "n/a" And cs <> "N/A" And Len(cs) <> 1 Then
                 Shift = ws2.Cells(i, 1).Value
                 stream = UCase(Trim(ws2.Cells(i, result.Column).Value))
                 
@@ -732,10 +732,7 @@ Sub ATFSO(RosterDate As String)
         i = 4
         Do While Trim(ws2.Cells(i, day + 1).Value) <> ""
             cs = Left(ws2.Cells(i, day + 1).Value, 2)
-            If ws1.Range(cs & day).Value <> "" Then
-                If Right(ws1.Range(cs & day).Value, 3) = ";S;" Then
-                    Debug.Print cs & " " & day & " " & RosterDate
-                End If
+            If ws1.Range(cs & day).Value <> "" And Right(ws1.Range(cs & day).Value, 3) <> ";S;" Then
                 ws1.Range(cs & day).Value = ws1.Range(cs & day).Value & "S;"
                 sick = sick + 1
             End If
@@ -814,7 +811,7 @@ Sub OneClick()
         Set logFile = objFSO.OpenTextFile(logFileName, ForAppending)
     End If
     
-    On Error GoTo closeLog
+    ' On Error GoTo closeLog
     logFile.WriteLine
     logFile.WriteLine "=========================================================================="
     logFile.WriteLine Now & vbTab & "Roster conversion started"
