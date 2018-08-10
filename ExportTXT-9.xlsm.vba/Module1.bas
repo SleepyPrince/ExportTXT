@@ -394,7 +394,7 @@ Sub ATCO(RosterDate As String)
                         End If
                         
                         ' notes
-                        tmpStr = ws2.Cells(i, j).Value
+                        tmpStr = Replace(Replace(ws2.Cells(i, j).Value, Chr(10), ""), Chr(13), "")
                         If InStr(tmpStr, "Individual notes are indicated on") <> 0 Then
                             ' Skip "Individual notes...' note
                         ElseIf tmpStr <> "" And tmpStr <> "0" Then
@@ -402,7 +402,7 @@ Sub ATCO(RosterDate As String)
                             If Mid(tmpStr, 2, 2) = ". " Then
                                 tmpStr = Right(tmpStr, Len(tmpStr) - 3)
                             End If
-                            notes = notes & "- " & Trim(tmpStr) & ";"
+                            notes = notes & "- " & Trim(Replace(Replace(tmpStr, "  ", " "), ",  ", ", ")) & ";"
                         Else
                             ' Skip if note cell is empty
                             Exit For
@@ -690,10 +690,11 @@ Sub ATFSO(RosterDate As String)
                         If InStr(ws2.Cells(i, j).Value, "See ATCO Watchlist for other duties") <> 0 Then
                             ' Skip
                         ElseIf ws2.Cells(i, j).Value <> "" And ws2.Cells(i, j).Value <> "0" Then
-                            tmpStr = ws2.Cells(i, j).Value
+                            ' tmpStr = ws2.Cells(i, j).Value
+                            tmpStr = Replace(Replace(ws2.Cells(i, j).Value, Chr(10), ""), Chr(13), "")
                             ' Replace emdash
                             tmpStr = Replace(tmpStr, ChrW(8212), "")
-                            notes = notes & "- " & Trim(tmpStr) & ";"
+                            notes = notes & "- " & Trim(Replace(Replace(tmpStr, "  ", " "), ",  ", ", ")) & ";"
                         Else
                             ' Skip if note cell is empty
                             Exit For
