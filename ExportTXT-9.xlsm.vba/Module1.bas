@@ -180,12 +180,14 @@ Sub ATCO(RosterDate As String)
     Dim notes As String
     Dim t As Single
   
-    filename = ATCOPath & RosterDate & ".xlsx"
+    filename = ATCOPath & RosterDate & "*.xlsx"
     
     If Dir(filename) = "" Then
         Debug.Print filename & " not found"
         Exit Sub
     End If
+    
+    filename = ATCOPath & Dir(filename)
     
     Set wb1 = ThisWorkbook
     
@@ -209,7 +211,8 @@ Sub ATCO(RosterDate As String)
     ws2.Columns.EntireColumn.Hidden = False
     ws2.Rows.EntireRow.Hidden = False
     
-    Set result = ws2.Range("B:B").Find("app", LookIn:=xlValues)
+    'Set result = ws2.Range("B:B").Find("app", LookIn:=xlValues)
+    Set result = ws2.Range("A:A").Find("E1", LookIn:=xlValues).Offset(0, 1)
     Set firstDayCol = ws2.UsedRange.Find(Format("1 " & RosterDate, "d-mmm"))
     
     If Not firstDayCol Is Nothing Then
@@ -226,12 +229,15 @@ Sub ATCO(RosterDate As String)
     For day = 1 To NumberOfDays
         ' Normal roster
         i = result.Row
-        stream = "APP"
+        stream = "TMC"
+        'stream = result.Text
         Do While ws2.Cells(i, result.Column).Value <> "C/S 1" ' Loop til other mannings
             cs = UCase(Trim(ws2.Cells(i, firstDayCol.Column + day - 1).Value))
             If cs <> "" Then
                 Shift = ws2.Cells(i, 1).Value
-                If ws2.Cells(i, result.Column).Value = "amn" Then
+                If ws2.Cells(i, result.Column).Value = "app" Then
+                    stream = "APP"
+                ElseIf ws2.Cells(i, result.Column).Value = "amn" Then
                     stream = "TWR"
                 ElseIf ws2.Cells(i, result.Column).Value = "tre" Then
                     stream = "AREA"
@@ -381,10 +387,13 @@ Sub ATCO(RosterDate As String)
                         ' Determine stream
                         Set result = ws2.Range("1:1").Find("HKIA")
                         
-                        Set result = ws2.Cells(i, result.Column).Resize(1, 3)
+                        'Set result = ws2.Cells(i, result.Column).Resize(1, 3)
+                        Set result = ws2.Cells(i, result.Column)
                         
                         If WorksheetFunction.CountA(result) <> 0 Then
                             ws1.Range(cs & streamRow).Value = "APPRoster"
+                        ElseIf WorksheetFunction.CountA(result.Offset(0, 1).Resize(1, 2)) <> 0 Then
+                            ws1.Range(cs & streamRow).Value = "TMCRoster"
                         ElseIf WorksheetFunction.CountA(result.Offset(0, 3).Resize(1, 7)) <> 0 Then
                             ws1.Range(cs & streamRow).Value = "AREARoster"
                         ElseIf WorksheetFunction.CountA(result.Offset(0, 12).Resize(1, 1)) <> 0 Then
@@ -479,12 +488,14 @@ Sub ATFSO(RosterDate As String)
     
     Dim ATFSONewer As Boolean
     
-    filename = ATFSOPath & RosterDate & ".xlsx"
+    filename = ATFSOPath & RosterDate & "*.xlsx"
     
     If Dir(filename) = "" Then
         Debug.Print filename & " not found"
         Exit Sub
     End If
+    
+    filename = ATFSOPath & Dir(filename)
     
     ' Check ATCO or ATFSO file is newer for deconfliction
     If Dir(ATCOPath & RosterDate & ".xlsx") = "" Then
@@ -808,7 +819,7 @@ Sub OneClick()
     
     ' Init log file
     Set objFSO = CreateObject("Scripting.FileSystemObject")
-    logFileName = ThisWorkbook.Path & "\log.txt"
+    logFileName = ThisWorkbook.path & "\log.txt"
     
     If Dir(logFileName) = "" Then
         Set logFile = objFSO.CreateTextFile(logFileName)
@@ -823,10 +834,10 @@ Sub OneClick()
     
     ScriptStart = Timer()
     
-    VersionTxt = ThisWorkbook.Path & "\ATCapp_Roster_Version.txt"
-    RosterTxt = ThisWorkbook.Path & "\ATCapp_Rosters_new.txt"
-    VersionTmp = ThisWorkbook.Path & "\ATCapp_Roster_Version.tmp"
-    RosterTmp = ThisWorkbook.Path & "\ATCapp_Rosters_new.tmp"
+    VersionTxt = ThisWorkbook.path & "\ATCapp_Roster_Version.txt"
+    RosterTxt = ThisWorkbook.path & "\ATCapp_Rosters_new.txt"
+    VersionTmp = ThisWorkbook.path & "\ATCapp_Roster_Version.tmp"
+    RosterTmp = ThisWorkbook.path & "\ATCapp_Rosters_new.tmp"
     
     ' Determine Files to process
     ' Default to process current and next month
@@ -834,8 +845,8 @@ Sub OneClick()
     Month2 = DateAdd("m", 1, Month1)
 
     ' Test paths
-    ATCOfile = ATCOPath & Format(Month2, "mmmm yyyy") & ".xlsx"
-    ATFSOfile = ATFSOPath & Format(Month2, "mmmm yyyy") & ".xlsx"
+    ATCOfile = ATCOPath & Format(Month2, "mmmm yyyy") & "*.xlsx"
+    ATFSOfile = ATFSOPath & Format(Month2, "mmmm yyyy") & "*.xlsx"
     
     'Debug.Print ATCOfile & " " & ATFSOfile
     
@@ -850,17 +861,19 @@ Sub OneClick()
     MonthToProcess(1) = Format(Month2, "mmmm yyyy")
    
     For i = 0 To 1
-        RosterFile(i, 0) = ATFSOPath & MonthToProcess(i) & ".xlsx"
-        RosterFile(i, 1) = ATCOPath & MonthToProcess(i) & ".xlsx"
+        RosterFile(i, 0) = Dir(ATFSOPath & MonthToProcess(i) & "*.xlsx")
+        RosterFile(i, 1) = Dir(ATCOPath & MonthToProcess(i) & "*.xlsx")
         
-        If Dir(RosterFile(i, 0)) <> "" Then
-            RosterModTime(i, 0) = Format(FileDateTime(RosterFile(i, 0)), "dd/mm/yyyy HH:nn")
+        If RosterFile(i, 0) <> "" Then
+            Debug.Print RosterFile(i, 0)
+            RosterModTime(i, 0) = Format(FileDateTime(ATFSOPath & RosterFile(i, 0)), "dd/mm/yyyy HH:nn")
         Else
             RosterModTime(i, 0) = ""
         End If
         
-        If Dir(RosterFile(i, 1)) <> "" Then
-            RosterModTime(i, 1) = Format(FileDateTime(RosterFile(i, 1)), "dd/mm/yyyy HH:nn")
+        If RosterFile(i, 1) <> "" Then
+            Debug.Print RosterFile(i, 1)
+            RosterModTime(i, 1) = Format(FileDateTime(ATCOPath & RosterFile(i, 1)), "dd/mm/yyyy HH:nn")
         Else
             RosterModTime(i, 1) = ""
         End If
@@ -907,8 +920,10 @@ Sub OneClick()
                        
                         ' Set "Roster"
                         If Application.CountIf(searchRng, "*;Y;*") > 0 Then
-                            If Application.CountIf(searchRng, "APP*") > 0 Or Application.CountIf(searchRng, "APS*") > 0 Or Application.CountIf(searchRng, "TSU*") > 0 Then
+                            If Application.CountIf(searchRng, "APP*") > 0 Or Application.CountIf(searchRng, "APS*") > 0 Then
                                 .Cells(streamRow, k).Value = "APPRoster"
+                            ElseIf Application.CountIf(searchRng, "TMC*") > 0 Or Application.CountIf(searchRng, "TSU*") > 0 Then
+                                .Cells(streamRow, k).Value = "TMCRoster"
                             ElseIf Application.CountIf(searchRng, "AREA*") > 0 Or Application.CountIf(searchRng, "ESU*") > 0 Then
                                 .Cells(streamRow, k).Value = "AREARoster"
                             ElseIf Application.CountIf(searchRng, "WMR*") > 0 Or Application.CountIf(searchRng, "FLM*") > 0 Then
@@ -1012,4 +1027,27 @@ Public Sub KillProperly(Killfile As String)
         SetAttr Killfile, vbNormal
         Kill Killfile
     End If
+End Sub
+
+Public Sub RegEx_Tester()
+
+Set objRegExp_1 = CreateObject("vbscript.regexp")
+
+objRegExp_1.Global = True
+
+objRegExp_1.IgnoreCase = True
+
+objRegExp_1.Pattern = "[a-z,A-Z]*@[a-z,A-Z]*.com."
+
+strToSearch = "ABC@xyz.com"
+
+Set regExp_Matches = objRegExp_1.Execute(strToSearch)
+
+If regExp_Matches.Count = 1 Then
+
+MsgBox ("This string is a valid email address.")
+Else
+MsgBox ("This string is not a valid email address.")
+End If
+
 End Sub
