@@ -53,7 +53,7 @@ Function ShiftDeconf(ATCO As String, ATFSO As String, ATFSONewer As Boolean, Opt
     End If
 
     ' Check stream
-    If AStream Like "TWR*" Or AStream Like "CDC*" And FStream Like "CDC*" Or AStream = FStream Or AStream = "See Note" Then
+    If (AStream Like "TWR*" Or AStream Like "CDC*" And FStream Like "CDC*") Or AStream = FStream Or AStream Like "See Note*" Or AStream Like "*Course" Then
         streamMatch = True
     End If
     
@@ -71,6 +71,11 @@ Function ShiftDeconf(ATCO As String, ATFSO As String, ATFSONewer As Boolean, Opt
     If Not streamMatch Or Not shiftMatch And Not ATFSONewer Then
         ' Stream and shift does not match and ATFSO is older, then use ATCO entry
         ShiftDeconf = ATCO
+        
+        ' Append Sick if Comp.leave is found
+        If sick = False And FStream Like "*Comp.leave" Then
+            ShiftDeconf = ShiftDeconf & "S;"
+        End If
     Else
         ' If using ATFSO shift, replace OJT in stream
         If InStr(FShift, "OJT") Then
@@ -173,7 +178,7 @@ Sub ATCO(RosterDate As String)
     Dim Shift As String
     Dim stream As String
     Dim entryStr As String
-    Dim xrmCell As Range
+    Dim asuCell As Range
     Dim OJTI As String
     Dim cellStr As String
     Dim tmpStr As Variant
@@ -219,8 +224,9 @@ Sub ATCO(RosterDate As String)
         'Debug.Print "firstRow: " & firstDayCol.Column
     End If
     
-    ' Find xrm to set stream
-    Set xrmCell = ws2.Range("B:B").Find("xrm", LookIn:=xlValues)
+    ' Find first cell with value above asu cell to set stream
+    'Set asuCell = ws2.Range("B:B").Find("asu", LookIn:=xlValues)
+    Set asuCell = ws2.Range("B:B").Find(ws2.Range("B:B").Find("asu", LookIn:=xlValues).Offset(-1, 0).Value, LookIn:=xlValues)
     
     NumberOfDays = NB_DAYS(DateValue("1 " & RosterDate))
     
@@ -241,8 +247,11 @@ Sub ATCO(RosterDate As String)
                     stream = "TWR"
                 ElseIf ws2.Cells(i, result.Column).Value = "tre" Then
                     stream = "AREA"
-                ElseIf i >= xrmCell.Row Then
+                ElseIf i >= asuCell.Row Then
                     stream = UCase(ws2.Cells(i, result.Column).Value)
+                    If stream = "EXR" Then
+                        stream = "XRM"
+                    End If
                 End If
                 
                 If IsAlpha(cs) And (Len(cs) = 4 Or Len(cs) = 2) Then
@@ -640,7 +649,9 @@ Sub ATFSO(RosterDate As String)
         Do While ws2.Cells(i, result.Column).Value <> ""
             cs = ws2.Cells(i, result.Column).Value
             stream = Trim(ws2.Cells(i, firstDayCol.Column + day - 1).Value)
-            If stream <> "" Then
+            
+            ' If stream exists and not whole month = "Course" then proceed to parsing
+            If stream <> "" And Not (stream = "Course" And Application.CountIf(ws2.Cells(i, firstDayCol.Column).Resize(1, NumberOfDays), "Course") = NumberOfDays) Then
                 cellStr = cs & day
                 Shift = ""
                 ' Append stream if cell not empty
@@ -657,8 +668,12 @@ Sub ATFSO(RosterDate As String)
                 End If
 
                 ' Write to cell and show
-                ws1.Range(cellStr).Value = (stream & ";" & Shift & ";N;;")
+                entryStr = (stream & ";" & Shift & ";N;;")
+                ws1.Range(cellStr).Value = ShiftDeconf(ws1.Range(cellStr).Value, entryStr, ATFSONewer, cs, day)
                 ws1.Range(cellStr).EntireColumn.Hidden = False
+                
+                'ws1.Range(cellStr).Value = (stream & ";" & Shift & ";N;;")
+                'ws1.Range(cellStr).EntireColumn.Hidden = False
             End If
             i = i + 1
         Loop
